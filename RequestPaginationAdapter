@@ -1,0 +1,39 @@
+class RequestsPaginationAdapter(private val contextUtils: ContextUtils,
+                                private val onArrowClick: ((RequestDTO) -> Unit),
+                                refreshPaginationCompanion: RefreshPaginationCompanion<RequestDTO>) : BaseMultiChoicePaginationAdapter<RequestDTO>(refreshPaginationCompanion) {
+    override val layoutResId = R.layout.item_request
+
+    override fun onBindViewHolder(holder: BaseViewHolder, position: Int) {
+        with(holder.itemView) {
+            check_btn?.onClick {}
+            request_chb?.setOnCheckedChangeListener(null)
+            val item = list.getOrNull(position)
+            val id = item?.id ?: ""
+            request_chb?.tag = id
+            ibArrow?.setOnClickListener {
+                val request = list.getOrNull(position) ?: return@setOnClickListener
+                onArrowClick(request)
+            }
+            item_type_iv?.setVisible(!isChoosingMode)
+            request_chb?.setVisible(isChoosingMode)
+            if (!isChoosingMode) {
+                val iconRes = if (item?.requestTypeKey == ReuqestType.FEEDBACK.value.id)
+                    R.drawable.ic_get_call_black
+                else
+                    R.drawable.ic_tablet
+                item_type_iv?.setImageResource(iconRes)
+            } else {
+                item?.id?.let {
+                    request_chb?.isChecked = userChoiceSet.contains(it.toString())
+                }
+                request_chb?.setOnCheckedChangeListener(onCheckedChangeListener)
+                check_btn?.onClick {
+                    val state = request_chb?.isChecked ?: false
+                    request_chb?.isChecked = !state
+                }
+            }
+            val numberFormat = item?.number ?: ""
+            cell_text_view?.text = numberFormat
+        }
+    }
+}

@@ -1,0 +1,34 @@
+abstract class BaseMultiChoicePaginationAdapter<T>(refreshPaginationCompanion:RefreshPaginationCompanion<T>) : BasePaginationAdapter<T>(refreshPaginationCompanion) {
+    protected var isChoosingMode = false
+    protected val userChoiceSet = mutableSetOf<String>()
+    protected val onCheckedChangeListener = CompoundButton.OnCheckedChangeListener { buttonView, isChecked ->
+        val itemId = buttonView?.tag as? String
+        itemId?.let {
+            if (isChecked)
+                userChoiceSet.add(it)
+            else
+                userChoiceSet.remove(it)
+        }
+        notifyDataSetChanged()
+    }
+
+    fun updateUserChoices(choices: Set<String>) {
+        userChoiceSet.clear()
+        userChoiceSet.addAll(choices)
+    }
+
+    fun changeMode(isChoosingMode: Boolean) {
+        this.isChoosingMode = isChoosingMode
+        if (!isChoosingMode) userChoiceSet.clear()
+        notifyDataSetChanged()
+    }
+
+    fun isChoosingModeActive() = isChoosingMode
+
+    fun clearChoices() {
+        userChoiceSet.clear()
+        notifyDataSetChanged()
+    }
+
+    fun getChoosedRequests() = userChoiceSet
+}

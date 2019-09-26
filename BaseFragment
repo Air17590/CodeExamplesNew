@@ -1,0 +1,80 @@
+
+abstract class BaseFragment : MvpAppCompatFragment(), BaseView, ContextUtils, PlaceholdersHelper {
+    override val noSearchItemsId: Int = R.drawable.ic_placeholder_no_search_results
+    override val noInternetResId: Int = R.drawable.ic_placeholder_no_internet
+    override val noAnyItemsResId: Int = R.drawable.ic_placeholder_empty_requests
+
+    abstract fun getPresenter(): BasePresenter<*>?
+
+    @get:LayoutRes
+    abstract val layoutId: Int
+
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        layoutId.let {
+            return inflater.inflate(it, container, false)
+        }
+    }
+
+    override fun showLoading(message: Any?) {
+        (activity as? BaseActivity)?.showLoading(message)
+    }
+
+    override fun hideLoading() {
+        (activity as? BaseActivity)?.hideLoading()
+    }
+
+    override fun showError(error: Any?, onPostExecute: (() -> Unit)?) {
+        (activity as? BaseActivity)?.showError(error, onPostExecute)
+    }
+
+    override fun hideError() {
+        (activity as? BaseActivity)?.hideError()
+    }
+
+    override fun logout() {
+        (activity as? BaseActivity)?.logout()
+    }
+
+    open fun isScreenDataValid(): Boolean = true
+
+    // ContextUtils IMPLEMENTATION
+    /////////////////////////////////////////////////////////////////
+    override fun getDimenInPx(dimenResId: Int): Float {
+        return context?.getDimenInPx(dimenResId) ?: 0f
+    }
+
+    override fun getResColor(resId: Int): Int? {
+        val colorRes = resId ?: return null
+        activity?.let {
+            return ContextCompat.getColor(it, colorRes)
+        }
+        return null
+    }
+
+    override fun getStrRes(resId: Int?): String {
+        if (context == null || resId == null) return ""
+        return getString(resId)
+    }
+
+    override fun dpToPx(value: Int): Float {
+        return context?.dpToPx(value) ?: 0f
+    }
+
+    override fun load(imageView: ImageView,
+                      link: String,
+                      resizeAfterLoad: Boolean,
+                      transformations: List<Transformation<Bitmap>>?) {
+        var glideLoader = Glide.with(this)
+            .load(BuildConfig.API_BASE_URL + link)
+            .placeholder(R.drawable.ic_avatar)
+        if(!transformations.isNullOrEmpty()) {
+            glideLoader = glideLoader.transform(*transformations.toTypedArray())
+        }
+        if (resizeAfterLoad) {
+            val maxHeight = resources.getDimension(R.dimen.default_recycler_photo_max_height)
+            val maxWidth = maxHeight * 2
+            glideLoader = glideLoader.override(maxWidth.toInt(), maxHeight.toInt())
+        }
+        glideLoader.into(imageView)
+    }
+}

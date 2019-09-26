@@ -1,0 +1,141 @@
+
+enum class PlaceholderStates {
+    NO_SEARCH_RESULTS,
+    NO_ANY_ITEMS,
+    NO_INTERNET,
+    SUCCESS
+}
+
+interface PlaceholdersHelper {
+    val noSearchItemsId: Int
+    val noInternetResId: Int
+    val noAnyItemsResId: Int
+
+    fun checkPlaceholderState(view: ImageView?, state: PlaceholderStates) {
+        when (state) {
+            PlaceholderStates.NO_SEARCH_RESULTS -> {
+                view?.setImageResource(noSearchItemsId)
+                view?.setVisible(true)
+            }
+            PlaceholderStates.NO_ANY_ITEMS -> {
+                view?.setImageResource(noAnyItemsResId)
+                view?.setVisible(true)
+            }
+            PlaceholderStates.NO_INTERNET -> {
+                view?.setImageResource(noInternetResId)
+                view?.setVisible(true)
+            }
+            PlaceholderStates.SUCCESS -> {
+                view?.setVisible(false)
+            }
+        }
+    }
+}
+
+interface RefreshPaginationCompanion<T> {
+    fun onRefresh(listener: (List<T>?) -> Unit)
+    fun onPagination(page: Int, listener: (List<T>?) -> Unit) {}
+}
+
+abstract class BasePaginationAdapter<T>(
+    val refreshPaginationCompanion: RefreshPaginationCompanion<T>) : RecyclerView.Adapter<BaseViewHolder>() {
+
+    abstract val layoutResId: Int
+    protected val list = mutableListOf<T>()
+    private var PAGE_START = 1
+    private var currentPage = PAGE_START
+    private var isLastPage = false
+    private var isPaginationVisible = false
+    private var paginator: BasePaginatonScrollListener? = null
+
+    class ViewHolder(var view: View) : BaseViewHolder(view)
+
+    fun initPaginator(lm: LinearLayoutManager, isRefreshing: () -> Boolean) {
+        paginator = object : BasePaginatonScrollListener(lm) {
+            override fun loadMoreItems() {
+                if (isRefreshing.invoke()) return
+                showPaginationLoader()
+            }
+
+            override fun isLastPage() = isLastPage
+            override fun isLoading() = isPaginationVisible
+        }
+    }
+
+    fun getPaginator() = paginator
+    override fun getItemCount() = list.size
+    fun clear() = list.clear()
+
+    fun setList(list: List<T>) {
+        this.list.clear()
+        this.list.addAll(list)
+        currentPage = PAGE_START
+        isLastPage = false
+        notifyDataSetChanged()
+    }
+
+    fun addAll(list: List<T>) {
+        this.list.addAll(list)
+        currentPage++
+        isPaginationVisible = false
+        notifyDataSetChanged()
+    }
+
+
+    override fun getItemViewType(position: Int) = when (true) {
+        isPaginationVisible && position == list.lastIndex -> VIEW_TYPE_PAGINATOR_LOADING
+        else -> VIEW_TYPE_NORMAL
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BaseViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return when (viewType) {
+            VIEW_TYPE_PAGINATOR_LOADING ->
+                LoaderHolder(inflater.inflate(R.layout.item_loader_recycleview, parent, false))
+            else ->
+                ViewHolder(inflater.inflate(layoutResId, parent, false))
+        }
+    }
+
+    fun refresh(stopRefresh: () -> Unit) {
+        if (isPaginationVisible) return stopRefresh.invoke()
+        list.clear()
+        notifyDataSetChanged()
+        refreshPaginationCompanion.onRefresh {
+            stopRefresh.invoke()
+            if (!it.isNullOrEmpty())
+                setList(it)
+        }
+    }
+
+    fun showPaginationLoader() {
+        if (isPaginationVisible) return
+        isPaginationVisible = true
+        list.add(list.first())
+        notifyDataSetChanged()
+        refreshPaginationCompanion.onPagination(currentPage + 1) {
+            removePaginationLoader()
+            if (it.isNullOrEmpty())
+                isLastPage = true
+            else
+                addAll(it)
+        }
+    }
+
+    fun removePaginationLoader() {
+        if (!isPaginationVisible) return
+        isPaginationVisible = false
+        if (!list.isNullOrEmpty()) {
+            val lastIndex = list.lastIndex
+            list.removeAt(lastIndex)
+            notifyItemRemoved(lastIndex)
+        }
+    }
+
+    inner class LoaderHolder(itemView: View) : BaseViewHolder(itemView)
+
+    companion object {
+        const val VIEW_TYPE_NORMAL = 0
+        const val VIEW_TYPE_PAGINATOR_LOADING = 1
+    }
+}

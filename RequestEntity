@@ -1,0 +1,65 @@
+
+@Entity(indices = [Index(value = ["creationDate"])], tableName = "requests")
+class RequestEntity(
+    @PrimaryKey
+    var id: Int,
+    var number: String,
+    var serviceTypeId: Int,
+    var serviceTypeKey: String,
+    var creationDate: Long,
+    var arrivalDatetime: Long,
+    var requestTypeId: Int,
+    var requestTypeKey: String,
+    var requestViewTypeId: Int,
+    var requestViewTypeKey: String,
+    var paymentMethodId: Int,
+    var paymentMethodKey: String,
+    var nds: Int,
+    var usingTime: String,
+    var comment: String,
+    var offerCount: Int,
+    var requestStatusId: Int,
+    var requestStatusKey: String,
+    var passengersCount: Int,
+    var kidsCount: Int,
+    var accompCount: Int,
+
+    var routes: List<RoutePointDB>,
+
+    var daysOfWeek: List<DayOfWeekDTO>) {
+
+    fun toDTO() =
+        RequestDTO(
+            id,
+            number,
+            serviceTypeId,
+            serviceTypeKey,
+            Calendar.getInstance().also { it.timeInMillis = creationDate },
+            Calendar.getInstance().also { it.timeInMillis = arrivalDatetime },
+            requestTypeId,
+            requestTypeKey,
+            requestViewTypeId,
+            requestViewTypeKey,
+            paymentMethodId,
+            paymentMethodKey,
+            nds == NEED_NDS_VALUE,
+            usingTime,
+            comment,
+            offerCount,
+            requestStatusId,
+            requestStatusKey,
+            passengersCount,
+            kidsCount,
+            accompCount,
+            routes.firstOrNull()?.toDTO(),
+            routes.lastOrNull()?.toDTO(),
+            if (routes.size > 2)
+                routes.subList(1, routes.size - 1).map { it.toDTO() }
+            else
+                listOf(),
+            daysOfWeek)
+
+    companion object {
+        private const val NEED_NDS_VALUE = 1
+    }
+}

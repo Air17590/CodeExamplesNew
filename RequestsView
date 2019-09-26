@@ -1,0 +1,4 @@
+@StateStrategyType(OneExecutionStateStrategy::class)
+interface RequestsView : BaseView {
+    fun onRequestsSended()
+}

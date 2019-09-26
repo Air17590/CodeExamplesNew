@@ -1,0 +1,85 @@
+data class RequestDTO(
+    var id: Int,
+    var number: String,
+    var serviceTypeId: Int,
+    var serviceTypeKey: String,
+    var creationDate: Calendar,
+    var arrivalDatetime: Calendar,
+    var requestTypeId: Int,
+    var requestTypeKey: String,
+    var requestViewTypeId: Int,
+    var requestViewTypeKey: String,
+    var paymentMethodId: Int,
+    var paymentMethodKey: String,
+    var isNeedNDS: Boolean,
+    var usingTime: String,
+    var comment: String,
+    var offerCount: Int,
+    var requestStatusId: Int,
+    var requestStatusKey: String,
+    var passengersCount: Int,
+    var kidsCount: Int,
+    var accompCount: Int,
+    var firstPoint: RoutePointDTO?,
+    var endPoint: RoutePointDTO?,
+    var routes: List<RoutePointDTO>,
+    var daysOfWeek: List<DayOfWeekDTO>) : Serializable {
+
+    val serviceTypeEnum
+        get() = TypeOfService.getTypeByString(serviceTypeKey)
+
+    fun toStorage() =
+        RequestEntity(
+            id,
+            number,
+            serviceTypeId,
+            serviceTypeKey,
+            creationDate.time.time,
+            arrivalDatetime.time.time,
+            requestTypeId,
+            requestTypeKey,
+            requestViewTypeId,
+            requestViewTypeKey,
+            paymentMethodId,
+            paymentMethodKey,
+            if (isNeedNDS) 1 else 0,
+            usingTime,
+            comment,
+            offerCount,
+            requestStatusId,
+            requestStatusKey,
+            passengersCount,
+            kidsCount,
+            accompCount,
+            convertRoutes(),
+            daysOfWeek)
+
+    private fun convertRoutes(): List<RoutePointDB> {
+        val route = mutableListOf<RoutePointDB>()
+        firstPoint?.let { route.add(it.toStorage()) }
+        route.addAll(routes.map { it.toStorage() })
+        endPoint?.let { route.add(it.toStorage()) }
+        return route
+    }
+
+    fun getOfferParamsList(contextUtils: ContextUtils): List<RequestParam> {
+        val list = mutableListOf<RequestParam>()
+        if (requestTypeKey == ReuqestType.FEEDBACK.value.id) {
+            list.add(RequestParam(R.drawable.ic_phone, contextUtils.getStrRes(R.string.request_feedback)))
+        } else {
+            list.add(RequestParam(R.drawable.ic_alarm_clock, contextUtils.getStrRes(R.string.request_service_duration_about) + " " + (usingTime
+                ?: 0) + " " + contextUtils.getStrRes(R.string.request_service_duration_hour)))
+            val ndsStrRes = if (isNeedNDS) R.string.request_with_nds else R.string.request_with_no_nds
+            list.add(RequestParam(R.drawable.ic_payment_card, contextUtils.getStrRes(ndsStrRes)
+                ?: ""))
+            val contacts = contextUtils.getStrRes(R.string.request_notification)
+            list.add(RequestParam(R.drawable.ic_phone, contacts))
+        }
+        var drivers = ""
+        drivers += " " + contextUtils.getStrRes(R.string.request_drivers)
+        list.add(RequestParam(R.drawable.ic_eye, drivers))
+        list.add(RequestParam(R.drawable.ic_comments, comment))
+        return list
+    }
+
+}

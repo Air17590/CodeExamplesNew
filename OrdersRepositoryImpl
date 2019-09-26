@@ -1,0 +1,91 @@
+
+class OrderRepositoryImpl : OrderRepository {
+
+    private val db = App.database
+    private val QUERY_TYPE = QueryParams.Requests
+    private val orderService: OrderService = ApiFactory.getRetrofitService(OrderService::class)
+    private var searchQuery: String? = null
+
+    override fun getServiceLevels() =
+        orderService.getServiceLevels()
+            .flatMap {
+                val list = it.map { it.toDTO() }
+                Single.just(list)
+            }
+
+    override fun getAdditionalServiceTypes() = orderService.getAdditionalServiceTypes()
+        .flatMap {
+            val list = it.map { it.toDTO() }
+            Single.just(list)
+        }
+
+    override fun createRequest(request: RequestFastForm): Single<ResponseBody> = Single.fromCallable {
+        val profileId = UserStorage.getCurrentProfileId()
+            ?: return@fromCallable throw  ApiException(requestCode = BasePresenter.BAD_TOKEN_REQUEST_CODE)
+        profileId to request.getJsonObj()
+    }.flatMap { pair ->
+        orderService.createRequest(pair.first, pair.second)
+    }
+
+    override fun sendRequestToArchive(requestId: List<String>): Single<ResponseBody> = Single.fromCallable {
+        val profileId = UserStorage.getCurrentProfileId()
+            ?: return@fromCallable throw  ApiException(requestCode = BasePresenter.BAD_TOKEN_REQUEST_CODE)
+        requestId to profileId
+    }
+        .flatMap { pair ->
+            orderService.sendRequestToArchive(pair.first, pair.second, mapOf(REQUEST_STATUS_ID_MAP_KEY to RequestStatus.ARCHIVE.value.id))
+        }
+
+    override fun getOrders(): Single<ResponseBody> = Single.fromCallable {
+        val profileId = UserStorage.getCurrentProfileId()
+            ?: return@fromCallable throw  ApiException(requestCode = BasePresenter.BAD_TOKEN_REQUEST_CODE)
+        profileId
+    }.flatMap { id ->
+        orderService.getProfileOrders(id)
+    }
+
+
+    override fun getRequests(query: String?, page: Int?, forceFromBackend: Boolean): Single<List<RequestDTO>> {
+        searchQuery = query
+        return isRequestsEmpty()
+            .flatMap { isDBRequestsEmpty ->
+                val needGetFromBakend = searchQuery.isNullOrEmpty() || isDBRequestsEmpty || forceFromBackend
+                if (needGetFromBakend)
+                    getRequestsFromBackend(page)
+                else
+                    getRequestsFromDB()
+            }
+    }
+
+    private fun getRequestsFromBackend(page: Int?) =
+        Single.fromCallable {
+            val profileId = UserStorage.getCurrentProfileId()
+                ?: return@fromCallable throw  ApiException(requestCode = BasePresenter.BAD_TOKEN_REQUEST_CODE)
+            profileId
+        }.flatMap { id ->
+            orderService.getProfileRequests(id)
+                .map { listRequests ->
+                    db.requestDao().clear()
+                    if (!listRequests.isNullOrEmpty()) {
+                        val requestsEntities = listRequests.map { it.toStorage() }
+                        db.requestDao().addRequests(requestsEntities)
+                        val query = QueryGenerator.getQuery(QUERY_TYPE, searchQuery, page)
+                        db.requestDao().getRequests(query).map { it.toDTO() }
+                    } else
+                        listOf()
+                }
+        }
+
+    private fun getRequestsFromDB() = Single.fromCallable {
+        val query = QueryGenerator.getQuery(QUERY_TYPE, searchQuery)
+        db.requestDao().getRequests(query).map { it.toDTO() }
+    }
+
+    private fun isRequestsEmpty() = Single.fromCallable { db.requestDao().getRequestsCount() == 0 }
+        .subscribeOn(Schedulers.io())
+        .observeOn(Schedulers.io())
+
+    companion object {
+        private const val REQUEST_STATUS_ID_MAP_KEY = "request_status_id"
+    }
+}

@@ -1,0 +1,157 @@
+class RequestsFragment : BaseFragment(), RequestsView, FragmentOnBackPressed, RefreshPaginationCompanion<RequestDTO> {
+    var searchView: SearchView? = null
+
+    @InjectPresenter
+    lateinit var presenter: RequestsPresenter
+
+    override val layoutId: Int
+        get() = R.layout.fragment_requests_list
+
+    private val adapter: RequestsPaginationAdapter = RequestsPaginationAdapter(contextUtils = this,
+        onArrowClick = { showRequestDetailsActivity(it) }, refreshPaginationCompanion = this)
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        swipe_refresh_lt.setColorSchemeResources(R.color.azure)
+        swipe_refresh_lt.setOnRefreshListener {
+            presenter.isSearching = false
+            adapter.clearChoices()
+            adapter.refresh { swipe_refresh_lt?.isRefreshing = false }
+        }
+        recyclerView.adapter = adapter
+        val lm = LinearLayoutManager(activity)
+        recyclerView.layoutManager = lm
+        adapter.initPaginator(lm) { swipe_refresh_lt?.isRefreshing ?: false }
+        adapter.getPaginator()?.let { recyclerView?.addOnScrollListener(it) }
+        savedInstanceState?.let {
+            restoreState(it)
+        }
+        swipeToRefresh()
+        setHasOptionsMenu(true)
+    }
+
+    fun restoreState(bundle: Bundle) {
+   
+        val isSearching = bundle.getBoolean(IS_SEARCHING_MODE)
+        val query = bundle.getString(SEARCH_QUERY_TEXT)
+        if (!query.isNullOrEmpty() && isSearching) {
+            presenter.isSearching = true
+            searchView?.setQuery(query, false)
+            searchView?.isIconified = false
+        }
+        val mode = bundle.getBoolean(IS_CHOOSING_MODE)
+        changeAdapterMode(mode)
+        val choices = bundle.getStringArrayList(CHOOSED_IDS)
+        if (!choices.isNullOrEmpty()) {
+            adapter.updateUserChoices(choices.toSet())
+        }
+    }
+
+    override fun getPresenter(): BasePresenter<*>? = presenter
+
+    fun showRequestDetailsActivity(request: RequestDTO) {
+        val profileItem = (activity as? MenuActivity)?.currentProfileItem
+        startActivity(intentFor<OrderDetailsActivity>(OrderDetailsActivity.MODE to OrderDetailsActivity.REQUEST_DETAILS,
+            REQUEST_ORDER_MODEL to request,
+            PHONE to profileItem?.phone,
+            EMAIL to profileItem?.email))
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?, inflater: MenuInflater?) {
+        inflater?.inflate(R.menu.requests_menu, menu)
+        val searchItem = menu?.findItem(R.id.search_it)
+        searchView = searchItem?.actionView as? SearchView
+        searchView?.queryHint = getString(R.string.search_hint_requests)
+        //TODO Add RX debounce
+        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(p0: String?) = true
+            override fun onQueryTextChange(p0: String?): Boolean {
+                presenter.isSearching = true
+                presenter.searchQuery = p0
+                swipe_refresh_lt.isRefreshing = true
+                adapter.refresh { swipe_refresh_lt.isRefreshing = false }
+                return true
+            }
+        })
+        super.onCreateOptionsMenu(menu, inflater)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
+        when (item?.itemId) {
+            R.id.action_to_archive -> {
+                if (!adapter.isChoosingModeActive()) {
+                    changeAdapterMode(true)
+                } else
+                    sendToArchive()
+                return true
+            }
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    fun isChoosingMode() = adapter.isChoosingModeActive()
+
+    fun sendToArchive() {
+        val ids = adapter.getChoosedRequests()
+        presenter.sendToArchive(ids.toList())
+    }
+
+    fun changeAdapterMode(isChoosingMode: Boolean) {
+        adapter.changeMode(isChoosingMode)
+        (parentFragment as? MyOrdersFragment)?.checkButtonMode(null)
+    }
+
+    fun swipeToRefresh() {
+        swipe_refresh_lt.isRefreshing = true
+        adapter.refresh { swipe_refresh_lt?.isRefreshing = false }
+    }
+
+    override fun onRequestsSended() {
+        (activity as? BaseActivity)?.showSimpleDialog(R.string.requests_sended_to_archive)
+        changeAdapterMode(false)
+        presenter.forceFromBackend = true
+        swipeToRefresh()
+    }
+
+    override fun onBackPressed(): Boolean {
+        when (true) {
+            searchView?.isIconified == false -> {
+                searchView?.isIconified = true
+                return true
+            }
+            isChoosingMode() -> {
+                adapter.changeMode(false)
+                (parentFragment as? MyOrdersFragment)?.checkButtonMode(null)
+                return true
+            }
+            else -> return false
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(SEARCH_QUERY_TEXT, presenter.searchQuery)
+        outState.putBoolean(IS_CHOOSING_MODE, adapter.isChoosingModeActive())
+        val choices = adapter.getChoosedRequests()
+        outState.putStringArrayList(CHOOSED_IDS, ArrayList(choices))
+        super.onSaveInstanceState(outState)
+    }
+
+    //RefreshPaginationCompanion implementation
+    override fun onRefresh(listener: (List<RequestDTO>?) -> Unit) {
+        presenter.getRequests { list, state ->
+            checkPlaceholderState(placeholder_iv, state)
+            listener.invoke(list)
+        }
+    }
+
+    override fun onPagination(page: Int, listener: (List<RequestDTO>?) -> Unit) {
+        presenter.getRequestsPagination(page, listener)
+    }
+
+    companion object {
+        private const val IS_SEARCHING_MODE = "IS_SEARCHING_MODE"
+        private const val SEARCH_QUERY_TEXT = "SEARCH_QUERY_TEXT"
+        private const val IS_CHOOSING_MODE = "IS_CHOOSING_MODE"
+        private const val CHOOSED_IDS = "CHOOSED_IDS"
+    }
+}

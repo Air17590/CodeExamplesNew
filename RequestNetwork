@@ -1,0 +1,72 @@
+
+data class RequestNetwork(
+    @SerializedName("requestId")
+    var id: Int?,
+    var number: String?,
+    @SerializedName("serviceTypeId")
+    var serviceType: ServiceTypeNetwork?,
+    @SerializedName("creationDate")
+    var creationDate: String?,
+    @SerializedName("arrivalDatetime")
+    var arrivalDatetime: String?,
+    @SerializedName("requestTypeId")
+    var requestType: RequestTypeNetwork?,
+    @SerializedName("requestViewId")
+    var requestViewType: RequestViewTypeNetwork?,
+    @SerializedName("paymentMethodId")
+    var paymentMethod: PaymentMethodNetwork?,
+    var nds: Int?,
+    @SerializedName("usingTime")
+    var usingTime: String?,
+    var comment: String?,
+    @SerializedName("profileId")
+    var profile: ProfileNetwork?,
+    @SerializedName("requestStatusId")
+    var status: RequestStatusNetwork?,
+    @SerializedName("passengersCount")
+    var passengersCount: String?,
+    @SerializedName("kidsCount")
+    var kidsCount: String?,
+    @SerializedName("accompCount")
+    var accompCount: String?,
+    var routes: List<RoutePointNetwork>?,
+    @SerializedName("dayOfWeeks")
+    var daysOfWeek: List<DayOfWeekNetwork>?,
+    @SerializedName("beginPoint")
+    var beginPoint: String?,
+    @SerializedName("endPoint")
+    var endPoint: String?,
+    @SerializedName("createdAt")
+    var createdAt: String?,
+    @SerializedName("updatedAt")
+    var updatedAt: String?,
+    @SerializedName("deletedAt")
+    var deletedAt: String?
+) {
+
+    fun toStorage() = RequestEntity(
+        id ?: 0,
+        number ?: "",
+        serviceType?.id ?: 0,
+        serviceType?.typeKey ?: "",
+        creationDate?.parseCalendar()?.time?.time ?: 0,
+        arrivalDatetime?.parseCalendar()?.time?.time ?: 0,
+        requestType?.id ?: 0,
+        requestType?.typeKey ?: "",
+        requestViewType?.id ?: 0,
+        requestViewType?.typeKey ?: "",
+        paymentMethod?.id ?: 0,
+        paymentMethod?.typeKey ?: "",
+        nds ?: 0,
+        usingTime ?: "",
+        comment ?: "",
+        0,
+        status?.id ?: 0,
+        status?.key ?: "",
+        passengersCount?.toIntOrNull() ?: 0,
+        kidsCount?.toIntOrNull() ?: 0,
+        accompCount?.toIntOrNull() ?: 0,
+        routes?.map { it.toStorage() } ?: listOf(),
+        daysOfWeek?.map { it.toDTO() } ?: listOf())
+
+}

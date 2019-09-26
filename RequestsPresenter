@@ -1,0 +1,47 @@
+@InjectViewState
+class RequestsPresenter : BasePresenter<RequestsView>() {
+    private val requestRepository: OrderRepository = OrderRepositoryProvider.instance
+
+    var searchQuery: String? = null
+    var isSearching = false
+    var forceFromBackend = false
+
+    fun getRequests(listener: (List<RequestDTO>?, PlaceholderStates) -> Unit) {
+        disposable += requestRepository.getRequests(query = searchQuery, forceFromBackend = forceFromBackend)
+            .addSchedulers()
+            .subscribe({ requestsList ->
+                val state =
+                    when (true) {
+                        requestsList.isNullOrEmpty() && searchQuery.isNullOrEmpty() -> PlaceholderStates.NO_ANY_ITEMS
+                        requestsList.isNullOrEmpty() && !searchQuery.isNullOrEmpty() -> PlaceholderStates.NO_SEARCH_RESULTS
+                        else -> PlaceholderStates.SUCCESS
+                    }
+                listener.invoke(requestsList, state)
+            }, {
+                doAsync { App.database.requestDao().clear() }
+                handleError(it)
+                listener.invoke(null, PlaceholderStates.NO_INTERNET)
+            })
+    }
+
+    fun getRequestsPagination(page: Int, listener: (List<RequestDTO>?) -> Unit) {
+        disposable += requestRepository.getRequests(query = searchQuery, page = page)
+            .addSchedulers()
+            .subscribe({ list -> listener.invoke(list) },
+                {
+                    listener.invoke(null)
+                    handleError(it)
+                })
+    }
+
+    fun sendToArchive(ids: List<String>) {
+        if (ids.isEmpty()) return viewState.showError(R.string.requests_to_archive)
+        disposable += requestRepository.sendRequest(ids)
+            .doOnSubscribe { viewState.showLoading() }
+            .doAfterTerminate { viewState.hideLoading() }
+            .addSchedulers()
+            .subscribe({
+                viewState.onRequestsSended()
+            }, this::handleError)
+    }
+}
